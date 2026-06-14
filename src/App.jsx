@@ -193,28 +193,35 @@ export default function App() {
   const packXStart = (corte - packL) / 2;
   const today = new Date().toLocaleDateString('es-AR', { day:'2-digit', month:'2-digit', year:'numeric' });
 
-  // Perfil lateral corregido — el film cubre packL con solape en ambos extremos
   const solapeHalf = solape / 2;
   const wT = (dia - tapa) / 2;
   const hT = Math.max(0, alt - altCil);
-  const sideFilmPath = [
+
+  // Build side film path showing each bottle's neck peak
+  const sideFilmParts = [
     `M ${-solapeHalf} ${alt}`,
     `L 0 ${alt}`,
     `L 0 ${alt - altCil}`,
-    `L ${packL / 2 - tapa / 2} 0`,
-    `L ${packL / 2 + tapa / 2} 0`,
-    `L ${packL} ${alt - altCil}`,
-    `L ${packL} ${alt}`,
-    `L ${packL + solapeHalf} ${alt}`,
-  ].join(' ');
+  ];
+  for (let i = 0; i < botL; i++) {
+    const neckLeft  = i * dia + (dia - tapa) / 2;
+    const neckRight = i * dia + (dia + tapa) / 2;
+    sideFilmParts.push(`L ${neckLeft} 0`);
+    sideFilmParts.push(`L ${neckRight} 0`);
+    if (i < botL - 1) sideFilmParts.push(`L ${(i + 1) * dia} ${alt - altCil}`);
+  }
+  sideFilmParts.push(`L ${packL} ${alt - altCil}`);
+  sideFilmParts.push(`L ${packL} ${alt}`);
+  sideFilmParts.push(`L ${packL + solapeHalf} ${alt}`);
+  const sideFilmPath = sideFilmParts.join(' ');
 
   const sidePoints = [
-    ['A', -solapeHalf,              alt,           -1],
-    ['B', 0,                         alt - altCil,  -1],
-    ['C', packL / 2 - tapa / 2,     0,             -1],
-    ['D', packL / 2 + tapa / 2,     0,              1],
-    ['E', packL,                     alt - altCil,   1],
-    ['F', packL + solapeHalf,        alt,            1],
+    ['A', -solapeHalf,                          alt,          -1],
+    ['B', 0,                                     alt - altCil, -1],
+    ['C', (dia - tapa) / 2,                     0,            -1],
+    ['D', (botL - 1) * dia + (dia + tapa) / 2,  0,             1],
+    ['E', packL,                                 alt - altCil,  1],
+    ['F', packL + solapeHalf,                    alt,           1],
   ];
 
   // ── RENDER ──
