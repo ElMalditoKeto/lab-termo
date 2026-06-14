@@ -208,7 +208,7 @@ export default function App() {
     const neckRight = i * dia + (dia + tapa) / 2;
     sideFilmParts.push(`L ${neckLeft} 0`);
     sideFilmParts.push(`L ${neckRight} 0`);
-    if (i < botL - 1) sideFilmParts.push(`L ${(i + 1) * dia} ${alt - altCil}`);
+    // film stays straight at top between necks, does not dip into valley
   }
   sideFilmParts.push(`L ${packL} ${alt - altCil}`);
   sideFilmParts.push(`L ${packL} ${alt}`);
