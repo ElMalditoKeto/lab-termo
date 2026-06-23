@@ -1,16 +1,5 @@
 import React, { useState, useEffect } from 'react';
 
-// ─── DENSITY kg/m³ for film consumption ───────────────────────────────────────
-const DENSITY_PVC  = 1380; // PVC termocontraíble típico
-const DENSITY_PETG = 1270;
-
-const PRESETS = [
-  { n:'CC 3×2 PET',    botT:3,botL:2,dia:70.5,alt:211.5,altCil:105,tapa:30.1,solape:70, micron:50,canales:2,modo:'inverso',bobina:645,tipoFilm:'arte', paso:740 },
-  { n:'Lata 330ml 3×2',botT:3,botL:2,dia:66,  alt:122,  altCil:100,tapa:54,  solape:60, micron:50,canales:2,modo:'inverso',bobina:560,tipoFilm:'cristal',paso:500 },
-  { n:'PET 500ml 3×2', botT:3,botL:2,dia:65,  alt:230,  altCil:145,tapa:28,  solape:70, micron:50,canales:2,modo:'inverso',bobina:580,tipoFilm:'arte', paso:770 },
-  { n:'Agua 1.5L 2×2', botT:2,botL:2,dia:91,  alt:300,  altCil:190,tapa:38,  solape:80, micron:60,canales:2,modo:'inverso',bobina:560,tipoFilm:'arte', paso:900 },
-];
-
 // ─── SMALL COMPONENTS ──────────────────────────────────────────────────────────
 
 function SectionHeader({ num, label }) {
@@ -59,10 +48,10 @@ function Toggle({ value, onChange, options }) {
 // ─── VALIDATION ────────────────────────────────────────────────────────────────
 function validate(f) {
   const warns = [];
-  if (f.altCil > f.alt)       warns.push(`Alt. cilíndrica (${f.altCil}) > alt. total (${f.alt})`);
+  if (f.altCil > f.alt)       warns.push(`Alt. hasta hombro (${f.altCil}) > alt. total (${f.alt})`);
   if (f.tapa >= f.dia)        warns.push(`Ø tapa (${f.tapa}) ≥ Ø botella (${f.dia})`);
   if (f.solape < 20)          warns.push('Solape < 20 mm — riesgo de apertura');
-  if (f.botT < 1 || f.botL < 1) warns.push('Disposición mínima: 1×1');
+  if (f.N < 1 || f.M < 1) warns.push('Disposición mínima: 1×1');
   if (f.micron < 30)          warns.push('Espesor < 30 µm — fuera de rango habitual');
   return warns;
 }
@@ -70,28 +59,23 @@ function validate(f) {
 // ─── MAIN APP ──────────────────────────────────────────────────────────────────
 export default function App() {
 
-  // ── INPUTS ──
-  const [botT,     setBotT]     = useState(3);
-  const [botL,     setBotL]     = useState(2);
-  const [dia,      setDia]      = useState(70.5);
-  const [alt,      setAlt]      = useState(211.5);
-  const [altCil,   setAltCil]   = useState(105);
-  const [tapa,     setTapa]     = useState(30.1);
+  // ── INPUTS ── (default: BNQ 500 ×12 / 4×3, termo cristal)
+  const [N,        setN]        = useState(4);     // lado largo (vertical) -> ancho bobina
+  const [M,        setM]        = useState(3);     // horizontal -> top del perfil
+  const [dia,      setDia]      = useState(70.5);  // Ø botella (cuerpo)
+  const [alt,      setAlt]      = useState(210);   // altura total
+  const [altCil,   setAltCil]   = useState(127.19);// altura hasta el hombro
+  const [tapa,     setTapa]     = useState(26.2);  // Ø tapa (superior)
   const [solape,   setSolape]   = useState(70);
   const [micron,   setMicron]   = useState(50);
-  const [canales,  setCanales]  = useState(2);
-  const [modo,     setModo]     = useState('inverso');
-  const [orejaM,   setOrejaM]   = useState(55.5);
-  const [bobinaM,  setBobinaM]  = useState(645);
-  const [tipoFilm, setTipoFilm] = useState('arte');
-  const [pasoArte, setPasoArte] = useState(740);
-  const [producto, setProducto] = useState('');
+  const [canales,  setCanales]  = useState(1);
+  const [modo,     setModo]     = useState('directo');
+  const [orejaM,   setOrejaM]   = useState(66.5);
+  const [bobinaM,  setBobinaM]  = useState(415);
+  const [tipoFilm, setTipoFilm] = useState('cristal');
+  const [pasoArte, setPasoArte] = useState(880);
+  const [producto, setProducto] = useState('BNQ 500 ×12');
   const [cliente,  setCliente]  = useState('');
-
-  // producción
-  const [cantPacks,    setCantPacks]    = useState(1000);
-  const [metrosBobina, setMetrosBobina] = useState(3000);
-  const [densidad,     setDensidad]     = useState(DENSITY_PVC);
 
   // UI
   const [configs,   setConfigs]  = useState(() => { try { return JSON.parse(localStorage.getItem('lt_v2') || '[]'); } catch { return []; } });
@@ -110,70 +94,77 @@ export default function App() {
   const [pts,         setPts]        = useState({ A:0,B:0,C:0,D:0,E:0,F:0 });
 
   useEffect(() => {
-    const pT = botT * dia;
-    const pL = botL * dia;
-    setPackT(pT);
-    setPackL(pL);
+    // N = lado largo (vertical) -> define el ANCHO DE BOBINA
+    // M = horizontal -> botellas que cruza el TOP del perfil
+    const ladoLargo = N * dia;   // dimensión vertical del pack (ej. 4*70.5 = 282)
+    const ladoTop   = M * dia;   // dimensión transversal (top)
+    setPackT(ladoLargo);   // cota vertical de la planta = N botellas (lado largo)
+    setPackL(ladoTop);     // top del perfil = M botellas
 
+    // --- ancho de bobina / canal / oreja (margen) ---
+    // El ancho de bobina = lado largo + 2 márgenes (oreja). En doble canal se reparte.
     let orC, canC, bobC;
     if (modo === 'directo') {
-      orC  = orejaM;
-      canC = pT + orC * 2;
-      bobC = canC * canales;
+      orC  = orejaM;                    // margen/oreja por lado
+      canC = ladoLargo + orC * 2;       // ancho de un canal
+      bobC = canC * canales;            // ancho total de bobina
     } else {
-      bobC = bobinaM;
+      bobC = bobinaM;                   // parto del ancho de bobina conocido
       canC = bobC / canales;
-      orC  = (canC - pT) / 2;
+      orC  = (canC - ladoLargo) / 2;    // despejo la oreja/margen
     }
     setOreja(Math.max(0, orC));
     setCanal(canC);
     setBobTotal(bobC);
 
-    const anchoTop = (botL - 1) * dia + tapa;
-    const wT  = (dia - tapa) / 2;
-    const hT  = Math.max(0, alt - altCil);
+    // --- perfil A-F: el rapport recorre la sección transversal dando la vuelta ---
+    // 0(S/SS)->A: medio lado largo (fondo)     = N*dia/2
+    // A->B: altura recta hasta el hombro        = alt - hombro
+    // B->C: hombro inclinado                    = lT
+    // C->D: top (cruza M botellas)              = (M-1)*dia + Ø tapa
+    // D->E->F: simétrico
+    // F->0': medio lado largo                   = N*dia/2
+    const anchoTop = (M - 1) * dia + tapa;
+    const wT  = (dia - tapa) / 2;          // cierre lateral del hombro
+    const altRecta = Math.max(0, altCil);  // altura hasta el hombro
+    const hT  = Math.max(0, alt - altCil); // alto del hombro
     const lT  = Math.sqrt(hT * hT + wT * wT);
+    const medioFondo = ladoLargo / 2;
 
-    const A = pL / 2 + solape / 2;
-    const B = A + altCil;
+    const A = medioFondo;
+    const B = A + altRecta;
     const C = B + lT;
     const D = C + anchoTop;
     const E = D + lT;
-    const F = E + altCil;
-    const totalS = F + pL / 2 + solape / 2;
+    const F = E + altRecta;
+    const totalS = F + medioFondo;         // rapport teórico (sin solape extra)
 
     setTotalSReal(totalS);
     setPts({ A, B, C, D, E, F });
     setCorte(tipoFilm === 'arte' ? pasoArte : totalS);
-  }, [botT,botL,dia,alt,altCil,tapa,solape,orejaM,bobinaM,tipoFilm,pasoArte,canales,modo]);
+  }, [N,M,dia,alt,altCil,tapa,solape,orejaM,bobinaM,tipoFilm,pasoArte,canales,modo]);
 
-  // ── DERIVED PRODUCTION ──
-  const mLinPack    = corte / 1000;
-  const m2Pack      = (bobTotal / 1000) * (corte / 1000);
-  const kgPack      = m2Pack * (micron / 1_000_000) * densidad;
-  const packsEnBobina = metrosBobina > 0 ? Math.floor((metrosBobina * 1000) / corte) : 0;
-  const mLinLote    = cantPacks * mLinPack;
-  const kgLote      = cantPacks * kgPack;
+
   const deltaArte   = pasoArte - totalSReal;
-  const warnings    = validate({ altCil, alt, tapa, dia, solape, botT, botL, micron });
+  const warnings    = validate({ altCil, alt, tapa, dia, solape, N, M, micron });
 
   // ── CONFIG PERSISTENCE ──
   const applyConfig = (p) => {
-    setBotT(p.botT);   setBotL(p.botL);   setDia(p.dia);
+    setN(p.N ?? p.botL ?? 4);   setM(p.M ?? p.botT ?? 3);   setDia(p.dia);
     setAlt(p.alt);     setAltCil(p.altCil); setTapa(p.tapa);
     setSolape(p.solape); setMicron(p.micron); setCanales(p.canales);
     setModo(p.modo);
-    setBobinaM(p.bobina   ?? p.bobinaM  ?? 645);
-    setTipoFilm(p.tipoFilm ?? p.tf       ?? 'arte');
-    setPasoArte(p.paso    ?? p.pasoArte  ?? 740);
-    if (p.modo === 'directo') setOrejaM(p.orejaM ?? 55.5);
+    setBobinaM(p.bobina   ?? p.bobinaM  ?? 415);
+    setTipoFilm(p.tipoFilm ?? p.tf       ?? 'cristal');
+    setPasoArte(p.paso    ?? p.pasoArte  ?? 880);
+    if (p.modo === 'directo') setOrejaM(p.orejaM ?? 66.5);
   };
 
   const saveConfig = () => {
     if (!cfgName.trim()) return;
     const c = {
       n: cfgName, t: new Date().toLocaleDateString('es-AR'),
-      botT,botL,dia,alt,altCil,tapa,solape,micron,canales,modo,
+      N,M,dia,alt,altCil,tapa,solape,micron,canales,modo,
       orejaM,bobinaM,tipoFilm,pasoArte,bobina:bobinaM,paso:pasoArte,tf:tipoFilm,
     };
     const nc = [...configs, c];
@@ -190,38 +181,40 @@ export default function App() {
 
   // ── SVG PLAN VIEW ──
   const ML = 95, MR = 90, MT = 50, MB = 60;
-  const packXStart = (corte - packL) / 2;
+  const ladoTop = M * dia;            // ancho del perfil lateral (top)
+  const ladoLargo = N * dia;          // dirección de avance / ancho de bobina
+  const packXStart = (corte - ladoTop) / 2;
   const today = new Date().toLocaleDateString('es-AR', { day:'2-digit', month:'2-digit', year:'numeric' });
 
   const solapeHalf = solape / 2;
   const wT = (dia - tapa) / 2;
   const hT = Math.max(0, alt - altCil);
 
-  // Build side film path showing each bottle's neck peak
+  // Perfil lateral: el film cruza M botellas por el top, mostrando cada pico de cuello
   const sideFilmParts = [
     `M ${-solapeHalf} ${alt}`,
     `L 0 ${alt}`,
     `L 0 ${alt - altCil}`,
   ];
-  for (let i = 0; i < botL; i++) {
+  for (let i = 0; i < M; i++) {
     const neckLeft  = i * dia + (dia - tapa) / 2;
     const neckRight = i * dia + (dia + tapa) / 2;
     sideFilmParts.push(`L ${neckLeft} 0`);
     sideFilmParts.push(`L ${neckRight} 0`);
-    // film stays straight at top between necks, does not dip into valley
+    // el film se mantiene recto en el top entre cuellos
   }
-  sideFilmParts.push(`L ${packL} ${alt - altCil}`);
-  sideFilmParts.push(`L ${packL} ${alt}`);
-  sideFilmParts.push(`L ${packL + solapeHalf} ${alt}`);
+  sideFilmParts.push(`L ${ladoTop} ${alt - altCil}`);
+  sideFilmParts.push(`L ${ladoTop} ${alt}`);
+  sideFilmParts.push(`L ${ladoTop + solapeHalf} ${alt}`);
   const sideFilmPath = sideFilmParts.join(' ');
 
   const sidePoints = [
-    ['A', -solapeHalf,                          alt,          -1],
-    ['B', 0,                                     alt - altCil, -1],
-    ['C', (dia - tapa) / 2,                     0,            -1],
-    ['D', (botL - 1) * dia + (dia + tapa) / 2,  0,             1],
-    ['E', packL,                                 alt - altCil,  1],
-    ['F', packL + solapeHalf,                    alt,           1],
+    ['A', -solapeHalf,                       alt,          -1],
+    ['B', 0,                                  alt - altCil, -1],
+    ['C', (dia - tapa) / 2,                  0,            -1],
+    ['D', (M - 1) * dia + (dia + tapa) / 2,  0,             1],
+    ['E', ladoTop,                            alt - altCil,  1],
+    ['F', ladoTop + solapeHalf,               alt,           1],
   ];
 
   // ── RENDER ──
@@ -246,22 +239,6 @@ export default function App() {
                   <div className="text-[8px] font-mono text-gray-400 uppercase tracking-[4px]">Film</div>
                   <div className="text-[8px] font-mono text-gray-400 uppercase tracking-[4px]">Termocontraíble</div>
                   <div className="text-[8px] font-mono text-gray-400 uppercase tracking-[4px]">Calculador</div>
-                </div>
-              </div>
-
-              {/* Presets */}
-              <div className="px-4 py-2 flex flex-col justify-center" style={{ borderRight: '1px solid #e5e5e5' }}>
-                <div className="text-[8px] font-mono text-gray-400 uppercase tracking-wider mb-1.5">Presets</div>
-                <div className="flex gap-1 flex-wrap">
-                  {PRESETS.map((p, i) => (
-                    <button key={i} onClick={() => applyConfig(p)}
-                      className="px-2.5 py-1 text-[10px] font-mono font-bold transition-colors"
-                      style={{ border: '1px solid #d1d5db', background: '#fff', color: '#374151' }}
-                      onMouseEnter={e => { e.target.style.background='#E61C24'; e.target.style.color='#fff'; e.target.style.borderColor='#E61C24'; }}
-                      onMouseLeave={e => { e.target.style.background='#fff'; e.target.style.color='#374151'; e.target.style.borderColor='#d1d5db'; }}>
-                      {p.n}
-                    </button>
-                  ))}
                 </div>
               </div>
 
@@ -355,27 +332,30 @@ export default function App() {
                 <SectionHeader num="01" label="Disposición" />
                 <div className="p-3 space-y-2.5">
                   <div className="grid grid-cols-2 gap-2">
-                    <Field label="Bot. Transv. (Y)">
-                      <input type="number" value={botT} onChange={e => setBotT(+e.target.value)} className={inp} />
+                    <Field label="N — lado largo (vert.)">
+                      <input type="number" value={N} onChange={e => setN(+e.target.value)} className={inp} />
                     </Field>
-                    <Field label="Bot. Long. (X)">
-                      <input type="number" value={botL} onChange={e => setBotL(+e.target.value)} className={inp} />
+                    <Field label="M — horizontal (top)">
+                      <input type="number" value={M} onChange={e => setM(+e.target.value)} className={inp} />
                     </Field>
                   </div>
-                  <Field label="Ø Botella (mm)">
+                  <Field label="Ø Botella / cuerpo (mm)">
                     <input type="number" step="0.1" value={dia} onChange={e => setDia(+e.target.value)} className={inp} />
+                    <div className="text-[7px] font-mono text-gray-400 mt-0.5 leading-tight">
+                      diámetro mayor = distancia entre centros
+                    </div>
                   </Field>
                   <div className="grid grid-cols-2 gap-2">
                     <Field label="Alt. Total (mm)">
                       <input type="number" step="0.1" value={alt} onChange={e => setAlt(+e.target.value)} className={inp} />
                     </Field>
-                    <Field label="Alt. Cilíndrica">
+                    <Field label="Alt. hasta hombro (mm)">
                       <input type="number" step="0.1" value={altCil}
                         onChange={e => setAltCil(+e.target.value)}
                         className={altCil > alt ? `${inp} border-red-500 bg-red-50` : inp} />
                     </Field>
                   </div>
-                  <Field label="Ø Tapa / Cuello (mm)">
+                  <Field label="Ø Tapa / superior (mm)">
                     <input type="number" step="0.1" value={tapa} onChange={e => setTapa(+e.target.value)} className={inpRed} />
                   </Field>
                 </div>
@@ -437,40 +417,6 @@ export default function App() {
                   <Field label="Espesor Film (µm)">
                     <input type="number" value={micron} onChange={e => setMicron(+e.target.value)} className={inp} />
                   </Field>
-                  <Field label="Densidad Film">
-                    <select value={densidad} onChange={e => setDensidad(+e.target.value)} className={inp}>
-                      <option value={DENSITY_PVC}>PVC — 1380 kg/m³</option>
-                      <option value={DENSITY_PETG}>PETG — 1270 kg/m³</option>
-                    </select>
-                  </Field>
-                </div>
-              </div>
-
-              {/* 04 PRODUCCIÓN */}
-              <div>
-                <SectionHeader num="04" label="Producción" />
-                <div className="p-3 space-y-2.5">
-                  <Field label="Cantidad de packs">
-                    <input type="number" value={cantPacks} onChange={e => setCantPacks(+e.target.value)} className={inp} />
-                  </Field>
-                  <Field label="Long. bobina disponible (m)">
-                    <input type="number" value={metrosBobina} onChange={e => setMetrosBobina(+e.target.value)} className={inp} />
-                  </Field>
-                  {/* quick results */}
-                  <div className="space-y-1.5 pt-1" style={{ borderTop: '1px solid #e5e5e5' }}>
-                    {[
-                      { label:'Packs en bobina',        val: packsEnBobina.toLocaleString('es-AR'),    unit:'packs' },
-                      { label:`Metro lin. para ${cantPacks.toLocaleString()} packs`, val: mLinLote.toFixed(1), unit:'m' },
-                      { label:`kg para ${cantPacks.toLocaleString()} packs`,         val: kgLote.toFixed(2),  unit:'kg' },
-                    ].map(({ label, val, unit }) => (
-                      <div key={label} className="flex justify-between items-baseline">
-                        <span className="text-[8px] font-mono text-gray-500 uppercase tracking-wider">{label}</span>
-                        <span className="text-sm font-mono font-black text-gray-900">
-                          {val}<span className="text-[9px] font-normal text-gray-400 ml-0.5">{unit}</span>
-                        </span>
-                      </div>
-                    ))}
-                  </div>
                 </div>
               </div>
             </div>
@@ -568,10 +514,10 @@ export default function App() {
 
                   {Array.from({ length: canales }).map((_, ci) => (
                     <g key={ci}>
-                      <rect x={packXStart} y={ci * canal + oreja} width={packL} height={packT}
+                      <rect x={packXStart} y={ci * canal + oreja} width={ladoTop} height={ladoLargo}
                         fill="none" stroke="#94a3b8" strokeWidth="0.8" strokeDasharray="5,3" />
-                      {Array.from({ length: botL }).map((_, xi) =>
-                        Array.from({ length: botT }).map((_, yi) => (
+                      {Array.from({ length: M }).map((_, xi) =>
+                        Array.from({ length: N }).map((_, yi) => (
                           <circle key={`${ci}-${xi}-${yi}`}
                             cx={packXStart + xi * dia + dia / 2}
                             cy={ci * canal + oreja + yi * dia + dia / 2}
@@ -699,9 +645,9 @@ export default function App() {
                   </div>
                   <div className="border border-gray-200 bg-white overflow-hidden">
                     <svg width="100%" style={{ maxHeight:'165px', display:'block' }}
-                      viewBox={`${-solape/2-35} -15 ${packL + solape + 60} ${alt + 30}`}
+                      viewBox={`${-solape/2-35} -15 ${ladoTop + solape + 60} ${alt + 30}`}
                       preserveAspectRatio="xMidYMid meet">
-                      {Array.from({ length: botL }).map((_, i) => (
+                      {Array.from({ length: M }).map((_, i) => (
                         <path key={i}
                           d={`M ${i*dia} ${alt} L ${i*dia} ${alt-altCil}
                               L ${i*dia+dia/2-tapa/2} 0 L ${i*dia+dia/2+tapa/2} 0
@@ -711,7 +657,7 @@ export default function App() {
                       <path d={sideFilmPath} fill="none" stroke="#E61C24" strokeWidth="2.5" strokeLinejoin="round" />
                       {/* solape brackets */}
                       <line x1={-solape/2} y1={alt} x2={0} y2={alt} stroke="#E61C24" strokeWidth="2.5" strokeDasharray="4,3" />
-                      <line x1={packL} y1={alt} x2={packL+solape/2} y2={alt} stroke="#E61C24" strokeWidth="2.5" strokeDasharray="4,3" />
+                      <line x1={ladoTop} y1={alt} x2={ladoTop+solape/2} y2={alt} stroke="#E61C24" strokeWidth="2.5" strokeDasharray="4,3" />
                       {sidePoints.map(([l, cx, cy, side]) => (
                         <g key={l}>
                           <circle cx={cx} cy={cy} r="3.5" fill="#E61C24" />
@@ -719,7 +665,7 @@ export default function App() {
                             fontFamily="monospace" textAnchor={side < 0 ? 'end' : 'start'}>{l}</text>
                         </g>
                       ))}
-                      <text x={packL / 2} y={alt + 14} fill="#059669" fontSize="9"
+                      <text x={ladoTop / 2} y={alt + 14} fill="#059669" fontSize="9"
                         textAnchor="middle" fontFamily="monospace">0 / S/SS</text>
                     </svg>
                   </div>
@@ -768,27 +714,12 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* 4. CONSUMO */}
+                {/* 4. DIRECCIÓN DE AVANCE */}
                 <div>
                   <div className="text-[9px] font-mono font-bold text-gray-500 uppercase tracking-[3px] mb-2">
-                    Consumo de Film
+                    Dirección de Avance
                   </div>
-                  <div className="border border-gray-200 bg-white p-3 space-y-2">
-                    {[
-                      { label:'m lin. / pack', val: mLinPack.toFixed(3),  unit:'m'   },
-                      { label:'m² / pack',     val: m2Pack.toFixed(4),    unit:'m²'  },
-                      { label:'kg / pack',     val: kgPack.toFixed(4),    unit:'kg'  },
-                      { label:'Espesor',       val: String(micron),       unit:'µm'  },
-                    ].map(({ label, val, unit }) => (
-                      <div key={label}>
-                        <div className="text-[8px] font-mono text-gray-400 uppercase tracking-wider">{label}</div>
-                        <div className="text-lg font-mono font-black text-gray-900 leading-tight">
-                          {val}<span className="text-xs font-normal text-gray-400 ml-1">{unit}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="mt-2 border border-gray-200 bg-white p-2">
+                  <div className="border border-gray-200 bg-white p-2">
                     <div className="text-[8px] font-mono text-gray-400 uppercase tracking-widest mb-1">Laufrichtung</div>
                     <svg width="100%" height="42" viewBox="0 0 155 42">
                       <ellipse cx="18" cy="21" rx="13" ry="19" fill="#fee2e2" stroke="#94a3b8" strokeWidth="1.5" />
