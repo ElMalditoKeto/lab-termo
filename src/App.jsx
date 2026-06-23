@@ -51,7 +51,7 @@ function validate(f) {
   if (f.altCil > f.alt)       warns.push(`Alt. hasta hombro (${f.altCil}) > alt. total (${f.alt})`);
   if (f.tapa >= f.dia)        warns.push(`Ø tapa (${f.tapa}) ≥ Ø botella (${f.dia})`);
   if (f.solape < 20)          warns.push('Solape < 20 mm — riesgo de apertura');
-  if (f.N < 1 || f.M < 1) warns.push('Disposición mínima: 1×1');
+  if (f.ladoA < 1 || f.ladoB < 1) warns.push('Disposición mínima: 1×1');
   if (f.micron < 30)          warns.push('Espesor < 30 µm — fuera de rango habitual');
   return warns;
 }
@@ -60,8 +60,8 @@ function validate(f) {
 export default function App() {
 
   // ── INPUTS ── (default: BNQ 500 ×12 / 4×3, termo cristal)
-  const [N,        setN]        = useState(4);     // lado largo (vertical) -> ancho bobina
-  const [M,        setM]        = useState(3);     // horizontal -> top del perfil
+  const [ladoA,        setLadoA]        = useState(4);     // lado largo (vertical) -> ancho bobina
+  const [ladoB,        setLadoB]        = useState(3);     // horizontal -> top del perfil
   const [dia,      setDia]      = useState(70.5);  // Ø botella (cuerpo)
   const [alt,      setAlt]      = useState(210);   // altura total
   const [altCil,   setAltCil]   = useState(127.19);// altura hasta el hombro
@@ -78,7 +78,7 @@ export default function App() {
   const [cliente,  setCliente]  = useState('');
 
   // UI
-  const [configs,   setConfigs]  = useState(() => { try { return JSON.parse(localStorage.getItem('lt_v2') || '[]'); } catch { return []; } });
+  const [configs,   setConfigs]  = useState([]);
   const [cfgName,   setCfgName]  = useState('');
   const [showSave,  setShowSave] = useState(false);
   const [showLoad,  setShowLoad] = useState(false);
@@ -96,8 +96,8 @@ export default function App() {
   useEffect(() => {
     // N = lado largo (vertical) -> define el ANCHO DE BOBINA
     // M = horizontal -> botellas que cruza el TOP del perfil
-    const ladoLargo = N * dia;   // dimensión vertical del pack (ej. 4*70.5 = 282)
-    const ladoTop   = M * dia;   // dimensión transversal (top)
+    const ladoLargo = ladoA * dia;   // dimensión vertical del pack (ej. 4*70.5 = 282)
+    const ladoTop   = ladoB * dia;   // dimensión transversal (top)
     setPackT(ladoLargo);   // cota vertical de la planta = N botellas (lado largo)
     setPackL(ladoTop);     // top del perfil = M botellas
 
@@ -124,7 +124,7 @@ export default function App() {
     // C->D: top (cruza M botellas)              = (M-1)*dia + Ø tapa
     // D->E->F: simétrico
     // F->0': medio lado largo                   = N*dia/2
-    const anchoTop = (M - 1) * dia + tapa;
+    const anchoTop = (ladoB - 1) * dia + tapa;
     const wT  = (dia - tapa) / 2;          // cierre lateral del hombro
     const altRecta = Math.max(0, altCil);  // altura hasta el hombro
     const hT  = Math.max(0, alt - altCil); // alto del hombro
@@ -142,15 +142,15 @@ export default function App() {
     setTotalSReal(totalS);
     setPts({ A, B, C, D, E, F });
     setCorte(tipoFilm === 'arte' ? pasoArte : totalS);
-  }, [N,M,dia,alt,altCil,tapa,solape,orejaM,bobinaM,tipoFilm,pasoArte,canales,modo]);
+  }, [ladoA,ladoB,dia,alt,altCil,tapa,solape,orejaM,bobinaM,tipoFilm,pasoArte,canales,modo]);
 
 
   const deltaArte   = pasoArte - totalSReal;
-  const warnings    = validate({ altCil, alt, tapa, dia, solape, N, M, micron });
+  const warnings    = validate({ altCil, alt, tapa, dia, solape, ladoA, ladoB, micron });
 
   // ── CONFIG PERSISTENCE ──
   const applyConfig = (p) => {
-    setN(p.N ?? p.botL ?? 4);   setM(p.M ?? p.botT ?? 3);   setDia(p.dia);
+    setLadoA(p.ladoA ?? p.N ?? p.botL ?? 4);   setLadoB(p.ladoB ?? p.M ?? p.botT ?? 3);   setDia(p.dia);
     setAlt(p.alt);     setAltCil(p.altCil); setTapa(p.tapa);
     setSolape(p.solape); setMicron(p.micron); setCanales(p.canales);
     setModo(p.modo);
@@ -164,25 +164,23 @@ export default function App() {
     if (!cfgName.trim()) return;
     const c = {
       n: cfgName, t: new Date().toLocaleDateString('es-AR'),
-      N,M,dia,alt,altCil,tapa,solape,micron,canales,modo,
+      ladoA,ladoB,dia,alt,altCil,tapa,solape,micron,canales,modo,
       orejaM,bobinaM,tipoFilm,pasoArte,bobina:bobinaM,paso:pasoArte,tf:tipoFilm,
     };
     const nc = [...configs, c];
     setConfigs(nc);
-    localStorage.setItem('lt_v2', JSON.stringify(nc));
     setCfgName(''); setShowSave(false);
   };
 
   const deleteCfg = (i) => {
     const nc = configs.filter((_, j) => j !== i);
     setConfigs(nc);
-    localStorage.setItem('lt_v2', JSON.stringify(nc));
   };
 
   // ── SVG PLAN VIEW ──
   const ML = 95, MR = 90, MT = 50, MB = 60;
-  const ladoTop = M * dia;            // ancho del perfil lateral (top)
-  const ladoLargo = N * dia;          // dirección de avance / ancho de bobina
+  const ladoTop = ladoB * dia;            // ancho del perfil lateral (top)
+  const ladoLargo = ladoA * dia;          // dirección de avance / ancho de bobina
   const packXStart = (corte - ladoTop) / 2;
   const today = new Date().toLocaleDateString('es-AR', { day:'2-digit', month:'2-digit', year:'numeric' });
 
@@ -196,7 +194,7 @@ export default function App() {
     `L 0 ${alt}`,
     `L 0 ${alt - altCil}`,
   ];
-  for (let i = 0; i < M; i++) {
+  for (let i = 0; i < ladoB; i++) {
     const neckLeft  = i * dia + (dia - tapa) / 2;
     const neckRight = i * dia + (dia + tapa) / 2;
     sideFilmParts.push(`L ${neckLeft} 0`);
@@ -209,12 +207,12 @@ export default function App() {
   const sideFilmPath = sideFilmParts.join(' ');
 
   const sidePoints = [
-    ['A', -solapeHalf,                       alt,          -1],
-    ['B', 0,                                  alt - altCil, -1],
-    ['C', (dia - tapa) / 2,                  0,            -1],
-    ['D', (M - 1) * dia + (dia + tapa) / 2,  0,             1],
-    ['E', ladoTop,                            alt - altCil,  1],
-    ['F', ladoTop + solapeHalf,               alt,           1],
+    ['A', 0,                                   alt,          -1],
+    ['B', 0,                                   alt - altCil, -1],
+    ['C', (dia - tapa) / 2,                    0,            -1],
+    ['D', (ladoB - 1) * dia + (dia + tapa) / 2,   0,             1],
+    ['E', ladoTop,                             alt - altCil,  1],
+    ['F', ladoTop,                             alt,           1],
   ];
 
   // ── RENDER ──
@@ -332,11 +330,11 @@ export default function App() {
                 <SectionHeader num="01" label="Disposición" />
                 <div className="p-3 space-y-2.5">
                   <div className="grid grid-cols-2 gap-2">
-                    <Field label="N — lado largo (vert.)">
-                      <input type="number" value={N} onChange={e => setN(+e.target.value)} className={inp} />
+                    <Field label="Lado A — lado largo (vert.)">
+                      <input type="number" value={ladoA} onChange={e => setLadoA(+e.target.value)} className={inp} />
                     </Field>
-                    <Field label="M — horizontal (top)">
-                      <input type="number" value={M} onChange={e => setM(+e.target.value)} className={inp} />
+                    <Field label="Lado B — horizontal (top)">
+                      <input type="number" value={ladoB} onChange={e => setLadoB(+e.target.value)} className={inp} />
                     </Field>
                   </div>
                   <Field label="Ø Botella / cuerpo (mm)">
@@ -516,8 +514,8 @@ export default function App() {
                     <g key={ci}>
                       <rect x={packXStart} y={ci * canal + oreja} width={ladoTop} height={ladoLargo}
                         fill="none" stroke="#94a3b8" strokeWidth="0.8" strokeDasharray="5,3" />
-                      {Array.from({ length: M }).map((_, xi) =>
-                        Array.from({ length: N }).map((_, yi) => (
+                      {Array.from({ length: ladoB }).map((_, xi) =>
+                        Array.from({ length: ladoA }).map((_, yi) => (
                           <circle key={`${ci}-${xi}-${yi}`}
                             cx={packXStart + xi * dia + dia / 2}
                             cy={ci * canal + oreja + yi * dia + dia / 2}
@@ -647,7 +645,7 @@ export default function App() {
                     <svg width="100%" style={{ maxHeight:'165px', display:'block' }}
                       viewBox={`${-solape/2-35} -15 ${ladoTop + solape + 60} ${alt + 30}`}
                       preserveAspectRatio="xMidYMid meet">
-                      {Array.from({ length: M }).map((_, i) => (
+                      {Array.from({ length: ladoB }).map((_, i) => (
                         <path key={i}
                           d={`M ${i*dia} ${alt} L ${i*dia} ${alt-altCil}
                               L ${i*dia+dia/2-tapa/2} 0 L ${i*dia+dia/2+tapa/2} 0
