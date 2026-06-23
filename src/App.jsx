@@ -60,110 +60,73 @@ function validate(f) {
 export default function App() {
 
   // ── INPUTS ── (default: BNQ 500 ×12 / 4×3, termo cristal)
-  const [ladoA,        setLadoA]        = useState(3);     // lado CORTO (horizontal) -> top del perfil
-  const [ladoB,        setLadoB]        = useState(4);     // lado LARGO (vertical)   -> ancho bobina
-  const [dia,      setDia]      = useState(70.5);  // Ø botella (cuerpo)
-  const [alt,      setAlt]      = useState(210);   // altura total
-  const [altCil,   setAltCil]   = useState(127.19);// altura hasta el hombro
-  const [tapa,     setTapa]     = useState(26.2);  // Ø tapa (superior)
-  const [solape,   setSolape]   = useState(70);
-  const [micron,   setMicron]   = useState(50);
-  const [canales,  setCanales]  = useState(1);
-  const [modo,     setModo]     = useState('directo');
-  const [orejaM,   setOrejaM]   = useState(66.5);
-  const [bobinaM,  setBobinaM]  = useState(415);
+  const [ladoA,    setLadoA]    = useState(3);      // lado CORTO (top del perfil)
+  const [ladoB,    setLadoB]    = useState(4);      // lado LARGO (vertical, ancho bobina)
+  const [dia,      setDia]      = useState(70.5);   // Ø botella cuerpo (mm)
+  const [alt,      setAlt]      = useState(210);    // altura total botella (mm)
+  const [altCil,   setAltCil]   = useState(127.19); // altura hasta el hombro (mm)
+  const [tapa,     setTapa]     = useState(26.2);   // Ø tapa superior (mm)
+  const [micron,   setMicron]   = useState(50);     // espesor film (µm)
+  const [canales,  setCanales]  = useState(1);      // canales del horno
+  const [folienbreite, setFolienbreite] = useState(415);  // ancho de bobina (mm)
+  const [rapport,      setRapport]      = useState(880);  // largo rapport (mm)
   const [tipoFilm, setTipoFilm] = useState('cristal');
-  const [pasoArte, setPasoArte] = useState(880);
   const [producto, setProducto] = useState('BNQ 500 ×12');
   const [cliente,  setCliente]  = useState('');
 
   // UI
-  const [configs,   setConfigs]  = useState([]);
-  const [cfgName,   setCfgName]  = useState('');
-  const [showSave,  setShowSave] = useState(false);
-  const [showLoad,  setShowLoad] = useState(false);
+  const [configs,  setConfigs]  = useState([]);
+  const [cfgName,  setCfgName]  = useState('');
+  const [showSave, setShowSave] = useState(false);
+  const [showLoad, setShowLoad] = useState(false);
 
-  // ── CALCULATED ──
-  const [packT,       setPackT]      = useState(0);
-  const [packL,       setPackL]      = useState(0);
-  const [oreja,       setOreja]      = useState(0);
-  const [canal,       setCanal]      = useState(0);
-  const [bobTotal,    setBobTotal]   = useState(0);
-  const [corte,       setCorte]      = useState(0);
-  const [totalSReal,  setTotalSReal] = useState(0);
-  const [pts,         setPts]        = useState({ A:0,B:0,C:0,D:0,E:0,F:0 });
+  // ── CALCULATED (todos outputs) ──
+  const ladoLargo  = ladoB * dia;
+  const ladoTop    = ladoA * dia;
+  const canal      = folienbreite / canales;
+  const oreja      = Math.max(0, (canal - ladoLargo) / 2);
+  const anchoTop   = (ladoA - 1) * dia + tapa;
+  const wT         = (dia - tapa) / 2;
+  const hT         = Math.max(0, alt - altCil);
+  const lT         = Math.sqrt(hT * hT + wT * wT);
+  const perimetro  = ladoLargo + 2 * altCil + 2 * lT + anchoTop;
+  const solape     = Math.max(0, rapport - perimetro);
+  const solapeLado = solape / 2;
 
-  useEffect(() => {
-    // ladoA = lado CORTO (horizontal) -> top del perfil
-    // ladoB = lado LARGO (vertical)   -> ancho de bobina
-    const ladoLargo = ladoB * dia;   // dimensión vertical del pack (ej. 4*70.5 = 282)
-    const ladoTop   = ladoA * dia;   // dimensión transversal (top)
-    setPackT(ladoLargo);   // cota vertical de la planta = lado largo
-    setPackL(ladoTop);     // top del perfil = lado corto
+  // Cotas A–F (el solape se distribuye desde el centro hacia los bordes)
+  const medioFondo = ladoLargo / 2;
+  const ptA = medioFondo - solapeLado;
+  const ptB = ptA + altCil;
+  const ptC = ptB + lT;
+  const ptD = ptC + anchoTop;
+  const ptE = ptD + lT;
+  const ptF = ptE + altCil;
+  const pts = { A: ptA, B: ptB, C: ptC, D: ptD, E: ptE, F: ptF };
 
-    // --- ancho de bobina / canal / oreja (margen) ---
-    let orC, canC, bobC;
-    if (modo === 'directo') {
-      orC  = orejaM;
-      canC = ladoLargo + orC * 2;
-      bobC = canC * canales;
-    } else {
-      bobC = bobinaM;
-      canC = bobC / canales;
-      orC  = (canC - ladoLargo) / 2;
-    }
-    setOreja(Math.max(0, orC));
-    setCanal(canC);
-    setBobTotal(bobC);
+  const packT      = ladoLargo;
+  const packL      = ladoTop;
+  const bobTotal   = folienbreite;
+  const corte      = rapport;
 
-    // --- perfil A-F ---
-    // 0->A: medio lado largo (fondo) = ladoB*dia/2
-    // A->B: altura hasta hombro
-    // B->C: hombro inclinado (lT)
-    // C->D: top (cruza ladoA botellas) = (ladoA-1)*dia + Ø tapa
-    // D->E->F: simétrico
-    const anchoTop = (ladoA - 1) * dia + tapa;
-    const wT  = (dia - tapa) / 2;
-    const altRecta = Math.max(0, altCil);
-    const hT  = Math.max(0, alt - altCil);
-    const lT  = Math.sqrt(hT * hT + wT * wT);
-    const medioFondo = ladoLargo / 2;
-
-    const A = medioFondo;
-    const B = A + altRecta;
-    const C = B + lT;
-    const D = C + anchoTop;
-    const E = D + lT;
-    const F = E + altRecta;
-    const totalS = F + medioFondo;
-
-    setTotalSReal(totalS);
-    setPts({ A, B, C, D, E, F });
-    setCorte(tipoFilm === 'arte' ? pasoArte : totalS);
-  }, [ladoA,ladoB,dia,alt,altCil,tapa,solape,orejaM,bobinaM,tipoFilm,pasoArte,canales,modo]);
-
-
-  const deltaArte   = pasoArte - totalSReal;
-  const warnings    = validate({ altCil, alt, tapa, dia, solape, ladoA, ladoB, micron });
+  const warnings   = validate({ altCil, alt, tapa, dia, solape, ladoA, ladoB, micron });
 
   // ── CONFIG PERSISTENCE ──
   const applyConfig = (p) => {
-    setLadoA(p.ladoA ?? p.N ?? p.botL ?? 4);   setLadoB(p.ladoB ?? p.M ?? p.botT ?? 3);   setDia(p.dia);
-    setAlt(p.alt);     setAltCil(p.altCil); setTapa(p.tapa);
-    setSolape(p.solape); setMicron(p.micron); setCanales(p.canales);
-    setModo(p.modo);
-    setBobinaM(p.bobina   ?? p.bobinaM  ?? 415);
-    setTipoFilm(p.tipoFilm ?? p.tf       ?? 'cristal');
-    setPasoArte(p.paso    ?? p.pasoArte  ?? 880);
-    if (p.modo === 'directo') setOrejaM(p.orejaM ?? 66.5);
+    setLadoA(p.ladoA ?? p.N ?? p.botL ?? 3);
+    setLadoB(p.ladoB ?? p.M ?? p.botT ?? 4);
+    setDia(p.dia);       setAlt(p.alt);     setAltCil(p.altCil);
+    setTapa(p.tapa);     setMicron(p.micron); setCanales(p.canales);
+    setFolienbreite(p.folienbreite ?? p.bobinaM ?? p.bobina ?? 415);
+    setRapport(p.rapport ?? p.pasoArte ?? p.paso ?? 880);
+    setTipoFilm(p.tipoFilm ?? p.tf ?? 'cristal');
   };
 
   const saveConfig = () => {
     if (!cfgName.trim()) return;
     const c = {
       n: cfgName, t: new Date().toLocaleDateString('es-AR'),
-      ladoA,ladoB,dia,alt,altCil,tapa,solape,micron,canales,modo,
-      orejaM,bobinaM,tipoFilm,pasoArte,bobina:bobinaM,paso:pasoArte,tf:tipoFilm,
+      ladoA, ladoB, dia, alt, altCil, tapa, micron, canales,
+      folienbreite, rapport, tipoFilm,
     };
     const nc = [...configs, c];
     setConfigs(nc);
@@ -177,40 +140,40 @@ export default function App() {
 
   // ── SVG PLAN VIEW ──
   const ML = 95, MR = 90, MT = 50, MB = 60;
-  const ladoTop   = ladoA * dia;   // lado corto -> top del perfil
-  const ladoLargo = ladoB * dia;   // lado largo -> ancho de bobina
   const packXStart = (corte - ladoTop) / 2;
   const today = new Date().toLocaleDateString('es-AR', { day:'2-digit', month:'2-digit', year:'numeric' });
 
-  const solapeHalf = solape / 2;
-  const wT = (dia - tapa) / 2;
-  const hT = Math.max(0, alt - altCil);
+  const solapePathStart = solapeLado; // alias para SVG
 
-  // Perfil lateral: el film cruza M botellas por el top, mostrando cada pico de cuello
+  // Perfil lateral: A y F en los bordes del pack (interno), S/SS en el centro del fondo
+  // El solape es el tramo extra que va FUERA de A y F (hacia el centro, por debajo)
   const sideFilmParts = [
-    `M ${-solapeHalf} ${alt}`,
-    `L 0 ${alt}`,
-    `L 0 ${alt - altCil}`,
+    `M ${ladoTop / 2} ${alt}`,          // S/SS: centro del fondo
+    `L 0 ${alt}`,                        // borde izquierdo del pack (= punto A)
+    `L 0 ${alt - altCil}`,               // sube lateral hasta hombro (= punto B)
   ];
   for (let i = 0; i < ladoA; i++) {
     const neckLeft  = i * dia + (dia - tapa) / 2;
     const neckRight = i * dia + (dia + tapa) / 2;
-    sideFilmParts.push(`L ${neckLeft} 0`);
+    sideFilmParts.push(`L ${neckLeft} 0`);   // punto C (i=0)
     sideFilmParts.push(`L ${neckRight} 0`);
-    // el film se mantiene recto en el top entre cuellos
   }
-  sideFilmParts.push(`L ${ladoTop} ${alt - altCil}`);
-  sideFilmParts.push(`L ${ladoTop} ${alt}`);
-  sideFilmParts.push(`L ${ladoTop + solapeHalf} ${alt}`);
+  sideFilmParts.push(`L ${ladoTop} ${alt - altCil}`);   // punto E
+  sideFilmParts.push(`L ${ladoTop} ${alt}`);             // punto F: borde derecho
+  sideFilmParts.push(`L ${ladoTop / 2} ${alt}`);         // vuelve al S/SS
   const sideFilmPath = sideFilmParts.join(' ');
 
+  // Tramos de solape (se dibujan separados, punteados, desde A y F hacia el centro)
+  const solapePathL = `M ${ladoTop/2} ${alt} L ${solapeLado} ${alt}`;
+  const solapePathR = `M ${ladoTop - solapeLado} ${alt} L ${ladoTop/2} ${alt}`;
+
   const sidePoints = [
-    ['A', 0,                                   alt,          -1],
-    ['B', 0,                                   alt - altCil, -1],
-    ['C', (dia - tapa) / 2,                    0,            -1],
-    ['D', (ladoB - 1) * dia + (dia + tapa) / 2,   0,             1],
-    ['E', ladoTop,                             alt - altCil,  1],
-    ['F', ladoTop,                             alt,           1],
+    ['A', 0,                                    alt,          -1],
+    ['B', 0,                                    alt - altCil, -1],
+    ['C', (dia - tapa) / 2,                     0,            -1],
+    ['D', (ladoA - 1) * dia + (dia + tapa) / 2, 0,             1],
+    ['E', ladoTop,                              alt - altCil,  1],
+    ['F', ladoTop,                              alt,           1],
   ];
 
   // ── RENDER ──
@@ -357,41 +320,22 @@ export default function App() {
                 </div>
               </div>
 
-              {/* 02 DIMENSIONAMIENTO */}
+              {/* 02 BOBINA */}
               <div style={{ borderBottom: '1px solid #e5e5e5' }}>
-                <SectionHeader num="02" label="Dimensionamiento" />
+                <SectionHeader num="02" label="Datos de Bobina" />
                 <div className="p-3 space-y-2.5">
+                  <Field label="Folienbreite — Ancho bobina (mm)">
+                    <input type="number" step="0.5" value={folienbreite} onChange={e => setFolienbreite(+e.target.value)} className={inpAmber} />
+                  </Field>
+                  <Field label="Rapportlänge — Rapport (mm)">
+                    <input type="number" step="0.5" value={rapport} onChange={e => setRapport(+e.target.value)} className={inpAmber} />
+                  </Field>
                   <Field label="Horno">
                     <select value={canales} onChange={e => setCanales(+e.target.value)} className={inp}>
                       <option value={1}>Monocanal</option>
                       <option value={2}>Doble Canal</option>
                     </select>
                   </Field>
-                  <Field label="Solape Inferior (mm)">
-                    <input type="number" step="0.1" value={solape} onChange={e => setSolape(+e.target.value)} className={inp} />
-                  </Field>
-
-                  {/* Modo cálculo */}
-                  <div className="p-2.5" style={{ border: '1px solid #fcd34d', background: '#fffbeb' }}>
-                    <div className="text-[8px] font-mono font-bold text-amber-700 uppercase tracking-wider mb-2">
-                      Modo de Cálculo
-                    </div>
-                    <Toggle
-                      value={modo}
-                      onChange={setModo}
-                      options={[{ val:'directo', label:'ESTÁNDAR' }, { val:'inverso', label:'ING. INVERSA' }]}
-                    />
-                    <div className="mt-2">
-                      {modo === 'directo'
-                        ? <Field label="Oreja manual (mm)">
-                            <input type="number" step="0.1" value={orejaM} onChange={e => setOrejaM(+e.target.value)} className={inpAmber} />
-                          </Field>
-                        : <Field label="Bobina Total (mm)">
-                            <input type="number" step="0.1" value={bobinaM} onChange={e => setBobinaM(+e.target.value)} className={inpAmber} />
-                          </Field>
-                      }
-                    </div>
-                  </div>
                 </div>
               </div>
 
@@ -404,12 +348,6 @@ export default function App() {
                     onChange={setTipoFilm}
                     options={[{ val:'cristal', label:'CRISTAL' }, { val:'arte', label:'CON ARTE' }]}
                   />
-                  {tipoFilm === 'arte' && (
-                    <Field label="Paso taco a taco (mm)">
-                      <input type="number" value={pasoArte} onChange={e => setPasoArte(+e.target.value)}
-                        className="w-full bg-yellow-50 border border-yellow-400 px-2 py-1.5 text-sm font-mono font-bold focus:outline-none rounded-none" />
-                    </Field>
-                  )}
                   <Field label="Espesor Film (µm)">
                     <input type="number" value={micron} onChange={e => setMicron(+e.target.value)} className={inp} />
                   </Field>
@@ -420,49 +358,53 @@ export default function App() {
             {/* ─────────── RIGHT — DRAWING ─────────── */}
             <div className="p-4 space-y-4 bg-white">
 
-              {/* ── HERO NUMBERS — Coca-Cola style ── */}
-              <div className="grid grid-cols-3" style={{ border: '2px solid #111' }}>
+              {/* ── HERO NUMBERS ── */}
+              <div className="grid grid-cols-4" style={{ border: '2px solid #111' }}>
                 {[
                   {
                     label: 'FOLIENBREITE (A)',
-                    value: bobTotal.toFixed(1),
+                    value: folienbreite.toFixed(1),
                     sub:   canales > 1 ? `${canales} canales × ${canal.toFixed(1)} mm` : 'Monocanal',
                     accent: true,
                   },
                   {
                     label: 'RAPPORTLÄNGE (S)',
-                    value: corte.toFixed(1),
-                    sub:   tipoFilm === 'arte' ? 'Arte: paso fijado' : 'Cristal: desarrollo óptimo',
+                    value: rapport.toFixed(1),
+                    sub:   `Perímetro pack: ${perimetro.toFixed(1)} mm`,
                     accent: false,
-                    warn:  tipoFilm === 'arte' && Math.abs(deltaArte) > 5,
-                    warnTxt: `Δ ${deltaArte >= 0 ? '+' : ''}${deltaArte.toFixed(1)} mm vs real`,
                   },
                   {
                     label: 'OREJAS (c/lado)',
                     value: oreja.toFixed(1),
-                    sub:   modo === 'inverso' ? 'Calculadas — Ing. Inversa' : 'Definidas manualmente',
+                    sub:   'Rapport − lado largo ÷ 2',
                     accent: false,
                     green: true,
                   },
-                ].map(({ label, value, sub, accent, green, warn, warnTxt }, i) => (
+                  {
+                    label: 'SOLAPE S/SS',
+                    value: solape.toFixed(1),
+                    sub:   `${solapeLado.toFixed(1)} mm c/lado`,
+                    accent: false,
+                    blue: true,
+                  },
+                ].map(({ label, value, sub, accent, green, blue }, i) => (
                   <div key={label}
                     className="p-4 flex flex-col justify-between"
                     style={{
                       background: accent ? '#E61C24' : '#fff',
-                      borderRight: i < 2 ? '1px solid #111' : 'none',
+                      borderRight: i < 3 ? '1px solid #111' : 'none',
                     }}>
                     <div className="text-[8px] font-mono uppercase tracking-[2px]"
                          style={{ color: accent ? 'rgba(255,255,255,0.7)' : '#9ca3af' }}>{label}</div>
                     <div className="font-mono font-black leading-none my-2"
                          style={{
                            fontSize: '38px',
-                           color: accent ? '#fff' : green ? '#059669' : '#111',
+                           color: accent ? '#fff' : green ? '#059669' : blue ? '#2563eb' : '#111',
                          }}>
                       {value}
                     </div>
                     <div>
                       <div className="text-[9px] font-mono" style={{ color: accent ? 'rgba(255,255,255,0.6)' : '#9ca3af' }}>{sub}</div>
-                      {warn && <div className="text-[9px] font-mono font-bold text-amber-600 mt-0.5">{warnTxt}</div>}
                     </div>
                   </div>
                 ))}
@@ -625,13 +567,11 @@ export default function App() {
                     </tbody>
                   </table>
                   <div className="text-[9px] font-mono text-gray-400 mt-1">
-                    Desarrollo real: {totalSReal.toFixed(2)} mm
+                    Perímetro pack: {perimetro.toFixed(2)} mm
                   </div>
-                  {tipoFilm === 'arte' && (
-                    <div className={`text-[9px] font-mono mt-0.5 font-bold ${Math.abs(deltaArte) > 5 ? 'text-amber-600' : 'text-gray-400'}`}>
-                      Δ arte/real: {deltaArte >= 0 ? '+' : ''}{deltaArte.toFixed(2)} mm
-                    </div>
-                  )}
+                  <div className={`text-[9px] font-mono mt-0.5 font-bold ${solape > 0 ? 'text-blue-600' : 'text-gray-400'}`}>
+                    Solape S/SS: {solape.toFixed(2)} mm ({solapeLado.toFixed(2)} mm c/lado)
+                  </div>
                 </div>
 
                 {/* 2. PERFIL LATERAL — corregido */}
@@ -641,8 +581,9 @@ export default function App() {
                   </div>
                   <div className="border border-gray-200 bg-white overflow-hidden">
                     <svg width="100%" style={{ maxHeight:'165px', display:'block' }}
-                      viewBox={`${-solape/2-35} -15 ${ladoTop + solape + 60} ${alt + 30}`}
+                      viewBox={`-35 -15 ${ladoTop + 60} ${alt + 35}`}
                       preserveAspectRatio="xMidYMid meet">
+                      {/* siluetas de botellas */}
                       {Array.from({ length: ladoA }).map((_, i) => (
                         <path key={i}
                           d={`M ${i*dia} ${alt} L ${i*dia} ${alt-altCil}
@@ -650,10 +591,12 @@ export default function App() {
                               L ${i*dia+dia} ${alt-altCil} L ${i*dia+dia} ${alt} Z`}
                           fill="none" stroke="#94a3b8" strokeWidth="1.2" />
                       ))}
+                      {/* film principal */}
                       <path d={sideFilmPath} fill="none" stroke="#E61C24" strokeWidth="2.5" strokeLinejoin="round" />
-                      {/* solape brackets */}
-                      <line x1={-solape/2} y1={alt} x2={0} y2={alt} stroke="#E61C24" strokeWidth="2.5" strokeDasharray="4,3" />
-                      <line x1={ladoTop} y1={alt} x2={ladoTop+solape/2} y2={alt} stroke="#E61C24" strokeWidth="2.5" strokeDasharray="4,3" />
+                      {/* solape: tramos punteados desde A y F hacia S/SS */}
+                      <path d={solapePathL} fill="none" stroke="#E61C24" strokeWidth="2" strokeDasharray="4,3" />
+                      <path d={solapePathR} fill="none" stroke="#E61C24" strokeWidth="2" strokeDasharray="4,3" />
+                      {/* puntos A–F */}
                       {sidePoints.map(([l, cx, cy, side]) => (
                         <g key={l}>
                           <circle cx={cx} cy={cy} r="3.5" fill="#E61C24" />
@@ -661,8 +604,10 @@ export default function App() {
                             fontFamily="monospace" textAnchor={side < 0 ? 'end' : 'start'}>{l}</text>
                         </g>
                       ))}
-                      <text x={ladoTop / 2} y={alt + 14} fill="#059669" fontSize="9"
-                        textAnchor="middle" fontFamily="monospace">0 / S/SS</text>
+                      {/* S/SS: punto de sellado en el centro del fondo */}
+                      <circle cx={ladoTop/2} cy={alt} r="4" fill="#059669" />
+                      <text x={ladoTop/2} y={alt + 16} fill="#059669" fontSize="9"
+                        textAnchor="middle" fontFamily="monospace" fontWeight="bold">S/SS</text>
                     </svg>
                   </div>
                 </div>
