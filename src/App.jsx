@@ -60,8 +60,8 @@ function validate(f) {
 export default function App() {
 
   // ── INPUTS ── (default: BNQ 500 ×12 / 4×3, termo cristal)
-  const [ladoA,        setLadoA]        = useState(4);     // lado largo (vertical) -> ancho bobina
-  const [ladoB,        setLadoB]        = useState(3);     // horizontal -> top del perfil
+  const [ladoA,        setLadoA]        = useState(3);     // lado CORTO (horizontal) -> top del perfil
+  const [ladoB,        setLadoB]        = useState(4);     // lado LARGO (vertical)   -> ancho bobina
   const [dia,      setDia]      = useState(70.5);  // Ø botella (cuerpo)
   const [alt,      setAlt]      = useState(210);   // altura total
   const [altCil,   setAltCil]   = useState(127.19);// altura hasta el hombro
@@ -94,40 +94,38 @@ export default function App() {
   const [pts,         setPts]        = useState({ A:0,B:0,C:0,D:0,E:0,F:0 });
 
   useEffect(() => {
-    // N = lado largo (vertical) -> define el ANCHO DE BOBINA
-    // M = horizontal -> botellas que cruza el TOP del perfil
-    const ladoLargo = ladoA * dia;   // dimensión vertical del pack (ej. 4*70.5 = 282)
-    const ladoTop   = ladoB * dia;   // dimensión transversal (top)
-    setPackT(ladoLargo);   // cota vertical de la planta = N botellas (lado largo)
-    setPackL(ladoTop);     // top del perfil = M botellas
+    // ladoA = lado CORTO (horizontal) -> top del perfil
+    // ladoB = lado LARGO (vertical)   -> ancho de bobina
+    const ladoLargo = ladoB * dia;   // dimensión vertical del pack (ej. 4*70.5 = 282)
+    const ladoTop   = ladoA * dia;   // dimensión transversal (top)
+    setPackT(ladoLargo);   // cota vertical de la planta = lado largo
+    setPackL(ladoTop);     // top del perfil = lado corto
 
     // --- ancho de bobina / canal / oreja (margen) ---
-    // El ancho de bobina = lado largo + 2 márgenes (oreja). En doble canal se reparte.
     let orC, canC, bobC;
     if (modo === 'directo') {
-      orC  = orejaM;                    // margen/oreja por lado
-      canC = ladoLargo + orC * 2;       // ancho de un canal
-      bobC = canC * canales;            // ancho total de bobina
+      orC  = orejaM;
+      canC = ladoLargo + orC * 2;
+      bobC = canC * canales;
     } else {
-      bobC = bobinaM;                   // parto del ancho de bobina conocido
+      bobC = bobinaM;
       canC = bobC / canales;
-      orC  = (canC - ladoLargo) / 2;    // despejo la oreja/margen
+      orC  = (canC - ladoLargo) / 2;
     }
     setOreja(Math.max(0, orC));
     setCanal(canC);
     setBobTotal(bobC);
 
-    // --- perfil A-F: el rapport recorre la sección transversal dando la vuelta ---
-    // 0(S/SS)->A: medio lado largo (fondo)     = N*dia/2
-    // A->B: altura recta hasta el hombro        = alt - hombro
-    // B->C: hombro inclinado                    = lT
-    // C->D: top (cruza M botellas)              = (M-1)*dia + Ø tapa
+    // --- perfil A-F ---
+    // 0->A: medio lado largo (fondo) = ladoB*dia/2
+    // A->B: altura hasta hombro
+    // B->C: hombro inclinado (lT)
+    // C->D: top (cruza ladoA botellas) = (ladoA-1)*dia + Ø tapa
     // D->E->F: simétrico
-    // F->0': medio lado largo                   = N*dia/2
-    const anchoTop = (ladoB - 1) * dia + tapa;
-    const wT  = (dia - tapa) / 2;          // cierre lateral del hombro
-    const altRecta = Math.max(0, altCil);  // altura hasta el hombro
-    const hT  = Math.max(0, alt - altCil); // alto del hombro
+    const anchoTop = (ladoA - 1) * dia + tapa;
+    const wT  = (dia - tapa) / 2;
+    const altRecta = Math.max(0, altCil);
+    const hT  = Math.max(0, alt - altCil);
     const lT  = Math.sqrt(hT * hT + wT * wT);
     const medioFondo = ladoLargo / 2;
 
@@ -137,7 +135,7 @@ export default function App() {
     const D = C + anchoTop;
     const E = D + lT;
     const F = E + altRecta;
-    const totalS = F + medioFondo;         // rapport teórico (sin solape extra)
+    const totalS = F + medioFondo;
 
     setTotalSReal(totalS);
     setPts({ A, B, C, D, E, F });
@@ -179,8 +177,8 @@ export default function App() {
 
   // ── SVG PLAN VIEW ──
   const ML = 95, MR = 90, MT = 50, MB = 60;
-  const ladoTop = ladoB * dia;            // ancho del perfil lateral (top)
-  const ladoLargo = ladoA * dia;          // dirección de avance / ancho de bobina
+  const ladoTop   = ladoA * dia;   // lado corto -> top del perfil
+  const ladoLargo = ladoB * dia;   // lado largo -> ancho de bobina
   const packXStart = (corte - ladoTop) / 2;
   const today = new Date().toLocaleDateString('es-AR', { day:'2-digit', month:'2-digit', year:'numeric' });
 
@@ -194,7 +192,7 @@ export default function App() {
     `L 0 ${alt}`,
     `L 0 ${alt - altCil}`,
   ];
-  for (let i = 0; i < ladoB; i++) {
+  for (let i = 0; i < ladoA; i++) {
     const neckLeft  = i * dia + (dia - tapa) / 2;
     const neckRight = i * dia + (dia + tapa) / 2;
     sideFilmParts.push(`L ${neckLeft} 0`);
@@ -330,10 +328,10 @@ export default function App() {
                 <SectionHeader num="01" label="Disposición" />
                 <div className="p-3 space-y-2.5">
                   <div className="grid grid-cols-2 gap-2">
-                    <Field label="Lado A — lado largo (vert.)">
+                    <Field label="Lado A — lado corto (top)">
                       <input type="number" value={ladoA} onChange={e => setLadoA(+e.target.value)} className={inp} />
                     </Field>
-                    <Field label="Lado B — horizontal (top)">
+                    <Field label="Lado B — lado largo (vert.)">
                       <input type="number" value={ladoB} onChange={e => setLadoB(+e.target.value)} className={inp} />
                     </Field>
                   </div>
@@ -514,8 +512,8 @@ export default function App() {
                     <g key={ci}>
                       <rect x={packXStart} y={ci * canal + oreja} width={ladoTop} height={ladoLargo}
                         fill="none" stroke="#94a3b8" strokeWidth="0.8" strokeDasharray="5,3" />
-                      {Array.from({ length: ladoB }).map((_, xi) =>
-                        Array.from({ length: ladoA }).map((_, yi) => (
+                      {Array.from({ length: ladoA }).map((_, xi) =>
+                        Array.from({ length: ladoB }).map((_, yi) => (
                           <circle key={`${ci}-${xi}-${yi}`}
                             cx={packXStart + xi * dia + dia / 2}
                             cy={ci * canal + oreja + yi * dia + dia / 2}
@@ -645,7 +643,7 @@ export default function App() {
                     <svg width="100%" style={{ maxHeight:'165px', display:'block' }}
                       viewBox={`${-solape/2-35} -15 ${ladoTop + solape + 60} ${alt + 30}`}
                       preserveAspectRatio="xMidYMid meet">
-                      {Array.from({ length: ladoB }).map((_, i) => (
+                      {Array.from({ length: ladoA }).map((_, i) => (
                         <path key={i}
                           d={`M ${i*dia} ${alt} L ${i*dia} ${alt-altCil}
                               L ${i*dia+dia/2-tapa/2} 0 L ${i*dia+dia/2+tapa/2} 0
